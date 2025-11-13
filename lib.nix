@@ -245,11 +245,11 @@
     combinations ? null,
     hooksFile ? ./.flk/hooks.sh,
     defaultImage ? null,
+    defaultShell ? null,
     maxCombinations ? 3,
-    includeBaseInShells ? false, # Don't auto-include in devShells
-    includeBaseInImages ? true, # Auto-include in container images
+    includeBaseInShells ? false,
+    includeBaseInImages ? true,
   }: let
-    # Separate profile sets for shells and images
     shellProfileDefinitions =
       if includeBaseInShells
       then {base = baseProfile;} // profileDefinitions
@@ -260,8 +260,8 @@
       then {base = baseProfile;} // profileDefinitions
       else profileDefinitions;
 
-    # Generate combinations from shell profiles (without base)
-    profileNames = builtins.attrNames shellProfileDefinitions;
+    shellProfileNames = builtins.attrNames shellProfileDefinitions;
+    imageProfileNames = builtins.attrNames imageProfileDefinitions;
 
     generateAllCombinations = profiles: maxSize: let
       combinations = k: list:
@@ -282,34 +282,47 @@
     in
       map (combo: lib.concatStringsSep "-" combo) allCombos;
 
-    autoCombinations =
+    shellCombinations =
       if combinations != null
       then combinations
-      else generateAllCombinations profileNames maxCombinations;
+      else generateAllCombinations shellProfileNames maxCombinations;
 
-    actualDefault =
+    imageCombinations =
+      if combinations != null
+      then combinations
+      else generateAllCombinations imageProfileNames maxCombinations;
+
+    actualDefaultShell =
+      if defaultShell != null
+      then defaultShell
+      else builtins.head shellCombinations;
+
+    actualDefaultImage =
       if defaultImage != null
       then defaultImage
-      else builtins.head autoCombinations;
+      else builtins.head imageCombinations;
 
-    # Images use imageProfileDefinitions (with base)
     generatedPackages = mkContainerImages {
       profileDefinitions = imageProfileDefinitions;
-      combinations = autoCombinations;
+      combinations = imageCombinations;
     };
 
     withDefaults =
       generatedPackages
       // {
-        default = generatedPackages."image-${actualDefault}";
+        default = generatedPackages."image-${actualDefaultImage}";
       };
   in {
-    # Shells use shellProfileDefinitions (without base by default)
-    devShells = mkDevShells {
-      profileDefinitions = shellProfileDefinitions;
-      inherit hooksFile;
-      combinations = autoCombinations;
-    };
+    devShells =
+      mkDevShells {
+        profileDefinitions = shellProfileDefinitions;
+        inherit hooksFile;
+        combinations = shellCombinations;
+      }
+      // {
+        # Override default shell
+        default = mkDevShell shellProfileDefinitions (parseProfiles shellProfileDefinitions actualDefaultShell) hooksFile;
+      };
 
     packages = withDefaults;
   };
