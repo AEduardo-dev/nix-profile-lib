@@ -6,6 +6,35 @@
   # "backend+frontend" -> ["backend" "frontend"]
   # "all" -> all profile names
 
+  # Built-in base profile - always available
+  baseProfile = {
+    packages = with pkgs; [
+      bashInteractive
+      coreutils
+      findutils
+      gnugrep
+      gnused
+      gawk
+      git
+      curl
+      wget
+    ];
+
+    envVars = {
+      LANG = "en_US.UTF-8";
+      LC_ALL = "en_US.UTF-8";
+    };
+
+    shellHook = ''
+      echo "✓ Base tools loaded"
+    '';
+
+    containerConfig = {
+      Cmd = ["${pkgs.bashInteractive}/bin/bash"];
+      WorkingDir = "/workspace";
+    };
+  };
+
   # Helper to source an external hooks file if it exists
   sourceHooksFile = path:
     if builtins.pathExists path
@@ -217,12 +246,24 @@
     hooksFile ? ./.flk/hooks.sh,
     defaultImage ? null,
     maxCombinations ? 3,
+    includeBaseInShells ? false, # Don't auto-include in devShells
+    includeBaseInImages ? true, # Auto-include in container images
   }: let
-    profileNames = builtins.attrNames profileDefinitions;
+    # Separate profile sets for shells and images
+    shellProfileDefinitions =
+      if includeBaseInShells
+      then {base = baseProfile;} // profileDefinitions
+      else profileDefinitions;
 
-    # Generate all combinations of profiles up to maxSize
+    imageProfileDefinitions =
+      if includeBaseInImages
+      then {base = baseProfile;} // profileDefinitions
+      else profileDefinitions;
+
+    # Generate combinations from shell profiles (without base)
+    profileNames = builtins.attrNames shellProfileDefinitions;
+
     generateAllCombinations = profiles: maxSize: let
-      # Generate combinations of specific size using proper recursion
       combinations = k: list:
         if k == 0
         then [[]]
@@ -236,10 +277,7 @@
         in
           withHead ++ withoutHead;
 
-      # Generate all sizes from 1 to maxSize
       allSizes = lib.lists.range 1 (lib.trivial.min maxSize (builtins.length profiles));
-
-      # Generate combinations for each size
       allCombos = lib.lists.concatMap (size: combinations size profiles) allSizes;
     in
       map (combo: lib.concatStringsSep "-" combo) allCombos;
@@ -254,8 +292,9 @@
       then defaultImage
       else builtins.head autoCombinations;
 
+    # Images use imageProfileDefinitions (with base)
     generatedPackages = mkContainerImages {
-      inherit profileDefinitions;
+      profileDefinitions = imageProfileDefinitions;
       combinations = autoCombinations;
     };
 
@@ -265,8 +304,10 @@
         default = generatedPackages."image-${actualDefault}";
       };
   in {
+    # Shells use shellProfileDefinitions (without base by default)
     devShells = mkDevShells {
-      inherit profileDefinitions hooksFile;
+      profileDefinitions = shellProfileDefinitions;
+      inherit hooksFile;
       combinations = autoCombinations;
     };
 
