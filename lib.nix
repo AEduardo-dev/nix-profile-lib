@@ -7,33 +7,14 @@
   # "all" -> all profile names
 
   # Built-in base profile - always available
-  baseProfile = {
-    packages = with pkgs; [
-      bashInteractive
-      coreutils
-      findutils
-      gnugrep
-      gnused
-      gawk
-      git
-      curl
-      wget
-    ];
 
-    envVars = {
-      LANG = "en_US.UTF-8";
-      LC_ALL = "en_US.UTF-8";
-    };
+  baseProfile = import ./base_profile.nix {inherit pkgs;};
 
-    shellHook = ''
-      echo "✓ Base tools loaded"
-    '';
-
-    containerConfig = {
-      Cmd = ["${pkgs.bashInteractive}/bin/bash"];
-      WorkingDir = "/workspace";
-    };
-  };
+  # Load global hooks if exists
+  globalShellHook =
+    if builtins.pathExists ./global_hooks.sh
+    then builtins.readFile ./global_hooks.sh
+    else "";
 
   # Helper to source an external hooks file if it exists
   sourceHooksFile = path:
@@ -139,7 +120,7 @@
   };
 
   # Create a devShell from profile names
-  mkDevShell = profileDefinitions: profileNames: hooksFile: let
+  mkDevShell = profileDefinitions: profileNames: hooksFile: globalShellHook: let
     merged = mergeProfiles profileDefinitions profileNames;
     scriptNames = builtins.attrNames merged.scripts;
     externalHooks = sourceHooksFile hooksFile;
@@ -155,6 +136,9 @@
 
         # Export environment variables
         ${merged.envVarExports}
+
+        # Run global shell hook if provided
+        ${globalShellHook}
 
         # Run profile hooks
         ${merged.shellHook}
@@ -195,20 +179,21 @@
     profileDefinitions,
     combinations,
     hooksFile ? "./.flk/hooks.sh",
+    globalShellHook ? "",
   }: let
     parser = parseProfiles profileDefinitions;
 
     generated = builtins.listToAttrs (
       map (combo: {
         name = combo;
-        value = mkDevShell profileDefinitions (parser combo) hooksFile;
+        value = mkDevShell profileDefinitions (parser combo) hooksFile globalShellHook;
       })
       combinations
     );
   in
     generated
     // {
-      default = mkDevShell profileDefinitions ["base"] hooksFile;
+      default = mkDevShell profileDefinitions ["base"] hooksFile globalShellHook;
     };
 
   # Generate all container images for given combinations
@@ -244,6 +229,7 @@
     profileDefinitions,
     combinations ? null,
     hooksFile ? ./.flk/hooks.sh,
+    globalShellHook ? "",
     defaultImage ? null,
     defaultShell ? null,
     maxCombinations ? 3,
@@ -316,12 +302,12 @@
     devShells =
       mkDevShells {
         profileDefinitions = shellProfileDefinitions;
-        inherit hooksFile;
+        inherit hooksFile globalShellHook;
         combinations = shellCombinations;
       }
       // {
         # Override default shell
-        default = mkDevShell shellProfileDefinitions (parseProfiles shellProfileDefinitions actualDefaultShell) hooksFile;
+        default = mkDevShell shellProfileDefinitions (parseProfiles shellProfileDefinitions actualDefaultShell) hooksFile globalShellHook;
       };
 
     packages = withDefaults;
