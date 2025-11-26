@@ -139,7 +139,7 @@
         # Export environment variables
         ${merged.envVarExports}
 
-        # Run global shell hook if provided
+        # Run global shell hook (from top-level)
         ${globalShellHook}
 
         # Run profile hooks
@@ -187,7 +187,7 @@
     generated = builtins.listToAttrs (
       map (combo: {
         name = combo;
-        value = mkDevShell profileDefinitions (parser combo) hooksFile globalShellHook;
+        value = mkDevShell profileDefinitions (parser combo) hooksFile;
       })
       combinations
     );
@@ -307,7 +307,7 @@
       }
       // {
         # Override default shell
-        default = mkDevShell shellProfileDefinitions (parseProfiles shellProfileDefinitions actualDefaultShell) hooksFile globalShellHook;
+        default = mkDevShell shellProfileDefinitions (parseProfiles shellProfileDefinitions actualDefaultShell) hooksFile;
       };
 
     packages = withDefaults;
