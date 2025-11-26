@@ -120,7 +120,7 @@
   };
 
   # Create a devShell from profile names
-  mkDevShell = profileDefinitions: profileNames: hooksFile: globalShellHook: let
+  mkDevShell = profileDefinitions: profileNames: hooksFile: let
     merged = mergeProfiles profileDefinitions profileNames;
     scriptNames = builtins.attrNames merged.scripts;
     externalHooks = sourceHooksFile hooksFile;
@@ -179,7 +179,6 @@
     profileDefinitions,
     combinations,
     hooksFile ? "./.flk/hooks.sh",
-    globalShellHook ? "",
   }: let
     parser = parseProfiles profileDefinitions;
 
@@ -229,7 +228,6 @@
     profileDefinitions,
     combinations ? null,
     hooksFile ? ./.flk/hooks.sh,
-    globalShellHook ? "",
     defaultImage ? null,
     defaultShell ? null,
     maxCombinations ? 3,
@@ -302,7 +300,7 @@
     devShells =
       mkDevShells {
         profileDefinitions = shellProfileDefinitions;
-        inherit hooksFile globalShellHook;
+        inherit hooksFile;
         combinations = shellCombinations;
       }
       // {
