@@ -11,9 +11,11 @@
   baseProfile = import ./base_profile.nix {inherit pkgs;};
 
   # Load global hooks if exists
-  globalShellHook =
-    if builtins.pathExists ./global_hooks.sh
-    then builtins.readFile ./global_hooks.sh
+  globalShellHook = let
+    globalHooksPath = ./global_hooks.sh; # Adjust path as needed
+  in
+    if builtins.pathExists globalHooksPath
+    then builtins.readFile globalHooksPath
     else "";
 
   # Helper to source an external hooks file if it exists
