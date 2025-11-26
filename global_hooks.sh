@@ -10,3 +10,5 @@ switch() {
     kill -SIGUSR1 $PPID
     exit 0
 }
+
+echo "✓ Global functions loaded: refresh, switch"
