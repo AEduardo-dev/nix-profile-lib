@@ -137,6 +137,7 @@
         echo ""
 
         # Export environment variables
+        export FLK_FLAKE_REF=".#${lib.concatStringsSep "-" profileNames}"
         ${merged.envVarExports}
 
         # Run global shell hook (from top-level)
