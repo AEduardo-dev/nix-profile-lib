@@ -10,14 +10,6 @@
 
   baseProfile = import ./base_profile.nix {inherit pkgs;};
 
-  # Load global hooks if exists
-  globalShellHook = let
-    globalHooksPath = ./global_hooks.sh; # Adjust path as needed
-  in
-    if builtins.pathExists globalHooksPath
-    then builtins.readFile globalHooksPath
-    else "";
-
   # Helper to source an external hooks file if it exists
   sourceHooksFile = path:
     if builtins.pathExists path
@@ -53,6 +45,18 @@
       lib.concatMapStringsSep "\n"
       (def: def.shellHook or "")
       selectedDefs;
+
+    # Merge commands
+    allCommands = lib.lists.flatten (
+      map (def: def.commands or []) selectedDefs
+    );
+    # Convert commands to script packages
+    commandPackages =
+      map (
+        cmd:
+          pkgs.writeShellScriptBin cmd.name cmd.script
+      )
+      allCommands;
 
     # Merge environment variables
     allEnvVars =
@@ -114,7 +118,7 @@
       WorkingDir = finalWorkingDir;
     };
   in {
-    packages = lib.lists.unique (allPackages ++ scriptsPackages);
+    packages = lib.lists.unique (allPackages ++ scriptsPackages ++ commandPackages);
     shellHook = allHooks;
     envVarExports = envVarExports;
     containerConfig = mergedContainerConfig;
@@ -139,9 +143,6 @@
         # Export environment variables
         export FLK_FLAKE_REF=".#${lib.concatStringsSep "-" profileNames}"
         ${merged.envVarExports}
-
-        # Run global shell hook (from top-level)
-        ${globalShellHook}
 
         # Run profile hooks
         ${merged.shellHook}
@@ -195,7 +196,7 @@
   in
     generated
     // {
-      default = mkDevShell profileDefinitions ["base"] hooksFile globalShellHook;
+      default = mkDevShell profileDefinitions ["base"] hooksFile;
     };
 
   # Generate all container images for given combinations
