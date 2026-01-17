@@ -24,7 +24,7 @@
 
   # Merge profile definitions for a list of profile names
   mergeProfiles = profileDefinitions: profileNames: let
-    selectedDefs = map (name: profileDefinitions.${name}) profileNames;
+    selectedDefs = [baseProfile] ++ map (name: profileDefinitions.${name}) profileNames;
 
     # Merge packages
     allPackages = lib.lists.flatten (
