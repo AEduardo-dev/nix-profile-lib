@@ -9,6 +9,10 @@
     git
     curl
     wget
+    ncurses
+    procps
+    less
+    util-linux
   ];
 
   envVars = {
