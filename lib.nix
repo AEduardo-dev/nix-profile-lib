@@ -163,14 +163,25 @@
   # Create a container image from profile names
   mkContainerImage = profileDefinitions: name: profileNames: let
     merged = mergeProfiles profileDefinitions profileNames;
+
+    # Link binaries into /bin so tools are reachable without store paths
+    binEnv = pkgs.buildEnv {
+      name = "${name}-env";
+      paths = merged.packages;
+      pathsToLink = ["/bin"];
+    };
+
+    # Ensure PATH includes all package bins
+    pathEnv = "PATH=${lib.makeBinPath merged.packages}";
   in
     pkgs.dockerTools.buildLayeredImage {
       inherit name;
       tag = "latest";
-      contents = merged.packages;
+      contents = [binEnv];
       config =
         merged.containerConfig
         // {
+          Env = lib.lists.unique ((merged.containerConfig.Env or []) ++ [pathEnv]);
           Labels = {
             "dev.profiles" = toString profileNames;
             "dev.scripts" = toString (builtins.attrNames merged.scripts);
